@@ -17,7 +17,7 @@ RUN apt-get -y update && apt-get clean && \
     openssl \
     libgit2-dev \
     tk-dev \
-    zlib1g-dev
+    zlib1g-dev \
     texlive-full
 
 # Add user to the sudoers
