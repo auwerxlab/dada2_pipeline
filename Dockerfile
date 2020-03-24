@@ -1,4 +1,4 @@
-FROM auwerxlab/singleuser-r:975a8e0-renku0.8.2-r3.5.2
+FROM auwerxlab/renkulab:renku0.9.1-r3.6.0-77f0631
 
 ARG RENKUTOOLS_VERSION=0.0.1
 
