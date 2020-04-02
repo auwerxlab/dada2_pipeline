@@ -6,7 +6,7 @@ For maximal reproducibility, we also provide a R project file and its associated
 
 For an example of report generated from the R Notebook, see [example.nb.html](http://htmlpreview.github.io/?https://github.com/chuvpne/dada2-pipeline/blob/master/example.nb.html).
 
-Note: Commands described in this documentation assume that you are using a Unix CLI.
+
 
 ## Resources
 
