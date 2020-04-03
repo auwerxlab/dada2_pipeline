@@ -254,8 +254,8 @@ Requires: BiocGenerics, Biostrings, IRanges, Rcpp, RcppParallel,
 
 Package: data.table
 Source: CRAN
-Version: 1.12.2
-Hash: b1642cf2ee0ab1d1b152ffacdb4401f7
+Version: 1.11.8
+Hash: 67c877937c790a0cadb71284febb6b34
 
 Package: desc
 Source: CRAN
@@ -385,6 +385,12 @@ Package: gtable
 Source: CRAN
 Version: 0.3.0
 Hash: a9e7b0666eb933a0cb36779240b4462e
+
+Package: here
+Source: CRAN
+Version: 0.1
+Hash: 90e1a97508a0d7383b0eeb11e397e763
+Requires: rprojroot
 
 Package: highr
 Source: CRAN

@@ -9,33 +9,42 @@ output:
 ```{r knitr, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-Copyright (c) 2018 Service de Pneumologie, Centre Hospitalier Universitaire Vaudois (CHUV), Switzerland and Monash University, Melbourne, Australia
 
-Converting amplicons nucleotides sequences from FASTQ files to a table of Amplicons Sequences Variants (ASV) using the DADA2 pipeline (R package {dada2}).
+# Import data
 
-The full documentation on required files and preparation is available in the README.md file and at https://github.com/chuvpne/dada2-pipeline.
+Download the fastq archives via scp:
 
-# Project Information
+`$ scp <username>@<host_address>:</path/to/fastq/archives> /home/rstudio/dada2_pipeline/data/`
 
-Analysis author: (ex: my name, my.name@xy.com)
+Split the fastq files into smaller files
+```{bash fastq_split, eval=F}
+# BASH
 
-Investigators: (ex: my name, my.name@xy.com)
+# Limit number of processes
+ulimit -u 3
+# Limit memory usage
+ulimit -v 6000000000
 
-Date: 
+rundirs=($(ls -d ../data/*/))
+for dir in "${rundirs[@]}"; do
+  ls "${dir}"*.fastq* \
+    | parallel -j 1 'gunzip {}; f=$(echo {} | sed "s/\.fastq\.gz$//") \
+      && split -l 100000 -d --additional-suffix=.fastq "${f}".fastq "${f}" \
+      && rm {} \
+      && gzip "${f}"*.fastq'
+done
+```
 
-Project: (ex: Myproject)
+Store the archives on LFS:
+```{bash lfs, eval=F}
+# BASH
 
-#### Sequencing Details
-
-Run ID: (ex: run01)
-
-Type: (ex: bacterial 16S rRNA gene amplicons v1-v2/F27-R338)
-
-Platform: (ex: Illumina MiSeq PE v2 2x250)
-
-Date: 
-
-Place: (ex: Lambda sequencing facility)
+git lfs track "*.fastq.gz"
+git lfs track "*.fastq"
+git add .gitattributes
+git add -A
+git commit -m "moving .fastq and .fastq.gz to LFS"
+```
 
 # Demultiplexing
 
@@ -43,15 +52,42 @@ Demultiplexing is performed using the `iu-demultiplex` command from the illumina
 If multiple runs have to be processed, this will be done in parallel. The `-j` argument in the `parallel` command specifies the number of computing cores to use. You may edit it to your need (considering both available CPUs and memory).
 
 *Make sure that the files names are consitents (i.e. R1.fastq.gz, R2.fastq.gz, Index.fastq.gz and barcode_to_sample.txt)*
+```{bash extract_barcodes, eval=F}
+# BASH
+
+# For each run extract barcodes and samples names for the iu-demultiplex command
+# Also create a new directory for demultiplexed sequences
+ls -d ../data/*/ \
+  | parallel 'cut -f1,2 {}map.txt | sed 1d > {}barcode_to_sample.txt; \
+    outputdir=demultiplexed; \
+    [[ ! -d {}"${outputdir}" ]] && mkdir {}"${outputdir}"'
+```
 ```{bash demultiplexing, eval=F}
 # BASH
-# If required, activate your illumina-utils virtual environment 
-# source ~/illumina-utils/bin/activate
 
-# For each run, store demultiplexed sequences in a new directory named "demultiplexed"
-ls -d run_data/* \
-  | parallel -j -2 'outputdir=demultiplexed; [[ ! -d {}/"${outputdir}" ]] && mkdir {}/"${outputdir}"; gunzip {}/*.fastq.gz && iu-demultiplex -s {}/barcode_to_sample* --r1 {}/R1.fastq --r2 {}/R2.fastq -i {}/Index.fastq -x -o {}/"${outputdir}"'
+rundirs=($(ls -d ../data/*/))
+for dir in "${rundirs[@]}"; do
+  ls "${dir}"R1*.fastq.gz \
+    | parallel -j 1 'id=$(echo {/.} | sed "s/1|\.fastq//"); \
+      r2={//}/$(echo {/.} | sed "s/R1/R2/"); \
+      i={//}/$(echo {/.} | sed "s/R1/Index/"); \
+      git lfs pull {} \
+      && git lfs pull "${r2}".gz \
+      && git lfs pull "${i}".gz \
+      && gunzip {} \
+      && gunzip "${r1}".gz \
+      && gunzip "${index}".gz \
+      && mkdir {//}/demultiplexed/"${id}" \
+      && iu-demultiplex -s {//}/barcode_to_sample.txt --r1 {.} --r2 "${r2}" -i "${index}" -x -o {//}/demultiplexed/"${id}" \
+      && gzip {} \
+      && gzip "${r1}".gz \
+      && gzip "${index}".gz \
+      && git add .gitattributes \
+      && git add -A \
+      && git commit -m "moving demultiplexed .fastq to LFS"'
+done
 ```
+
 # Running the DADA2 pipeline
 
 ## Environment setup
@@ -64,12 +100,10 @@ Distribution of computation over multiple computing cores (parallelization) will
 *Make sure that the packrat library path is correct. If needed, edit the `.libPaths` command accordingly.*
 ```{r packrat, eval=F}
 # R
-# Install required R librairies with packrat
-packrat::set_opts(use.cache=FALSE)
-packrat::restore()
-# Make sure that the packrat library path is correct. If needed, edit the `.libPaths` command accordingly.
 
-.libPaths(file.path("packrat", list.files("packrat", pattern = "lib"),
+# Make sure that the packrat library path is correct. If needed, edit the `.libPaths` command accordingly.
+packrat::set_opts(use.cache=FALSE)
+.libPaths(file.path("../packrat", list.files("../packrat", pattern = "lib"),
                     version$platform,
                     paste(version$major, version$minor, sep=".")))
 ```
@@ -78,12 +112,15 @@ packrat::restore()
 version$version.string
 version$platform
 suppressMessages(library(dada2)); packageVersion("dada2")
-suppressMessages(library(foreach)); packageVersion("foreach")
-suppressMessages(library(doParallel)); packageVersion("doParallel")
-suppressMessages(library(ggplot2)); packageVersion("ggplot2")
-suppressMessages(library(ggpubr)); packageVersion("ggpubr")
-suppressMessages(library(reshape2)); packageVersion("reshape2")
-suppressMessages(library(data.table)); packageVersion("data.table")
+suppressMessages(library(foreach))
+suppressMessages(library(doParallel))
+suppressMessages(library(here))
+suppressMessages(library(dplyr))
+suppressMessages(library(tidyr))
+suppressMessages(library(reshape2))
+suppressMessages(library(data.table))
+suppressMessages(library(ggplot2))
+suppressMessages(library(ggpubr))
 
 # Parallelization
 cores <- detectCores()
@@ -96,7 +133,7 @@ registerDoParallel(cl)
 paste(nc, "cores used")
 
 # Set seed for pseudo-random numbers generation
-set.seed(2)
+set.seed(1988)
 ```
 
 ## Quality Check

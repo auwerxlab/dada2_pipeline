@@ -391,3 +391,4 @@ Rplots*
 !/lib/
 !*/.gitkeep
 
+packrat/lib*/
